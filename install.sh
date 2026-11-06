@@ -1,9 +1,3 @@
----
-
-#### `install.sh`
-Das All-in-One-Installationsskript für den Pi:
-
-```bash
 #!/bin/bash
 set -e
 

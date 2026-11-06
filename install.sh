@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-REPO_URL="https://github.com/naturekid72/adsb-epaper-2in13.git"
+REPO_URL="https://github.com/naturekid72/ePaper-2.13-for-adsb.im-dietpie-Image-"
 INSTALL_DIR="/opt/adsb-epaper"
 
 echo "=== Starte Installation: ADS-B e-Paper Display (Waveshare 2.13 V4) ==="

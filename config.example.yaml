@@ -1,0 +1,6 @@
+station_name: "xxx"
+api_base: "http://127.0.0.1:8080/data"
+home_lat: 5x.1780
+home_lon: x.1890
+refresh_sec: 10
+rotate_180: false

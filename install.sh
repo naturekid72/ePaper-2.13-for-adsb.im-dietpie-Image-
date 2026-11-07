@@ -1,17 +1,19 @@
 #!/bin/bash
 set -e
 
-REPO_URL="https://github.com/naturekid72/ePaper-2.13-for-adsb.im-dietpie-Image-"
+REPO_URL="https://github.com/naturekid72/ePaper-2.13-for-adsb.im-dietpie-Image-.git"
 INSTALL_DIR="/opt/adsb-epaper"
 
 echo "=== Starte Installation: ADS-B e-Paper Display (Waveshare 2.13 V4) ==="
 
+# 1. Root-Check
 if [ "$EUID" -ne 0 ]; then
   echo "Bitte als root ausführen (sudo bash install.sh)"
   exit 1
 fi
 
-echo "[1/6] Aktiviere SPI-Schnittstelle..."
+# 2. SPI aktivieren
+echo "[1/5] Aktiviere SPI-Schnittstelle..."
 if [ -f /boot/dietpi/func/dietpi-set_hardware ]; then
     /boot/dietpi/func/dietpi-set_hardware spi enable
 elif command -v raspi-config >/dev/null 2>&1; then
@@ -24,31 +26,37 @@ else
     done
 fi
 
-echo "[2/6] Installiere System-Abhängigkeiten..."
+# 3. System-Pakete installieren
+echo "[2/5] Installiere System-Abhängigkeiten..."
 apt-get update -qq
-apt-get install -y -qq git python3-pil python3-requests python3-yaml python3-spidev python3-gpiozero python3-lgpio fonts-dejavu-core
+apt-get install -y -qq git curl python3-pip python3-pil python3-requests python3-yaml python3-spidev python3-gpiozero python3-lgpio fonts-dejavu-core
 
-echo "[3/6] Installiere Waveshare e-Paper Treiber..."
+# 4. Waveshare-Treiber ohne Git installieren (über PyPI oder Fallback)
+echo "[3/5] Installiere Waveshare e-Paper Treiber..."
 if ! python3 -c "import waveshare_epd" >/dev/null 2>&1; then
-    TEMP_WS=$(mktemp -d)
-    git clone --depth 1 --filter=blob:none --sparse https://github.com/waveshareteam/e-Paper.git "$TEMP_WS"
-    cd "$TEMP_WS"
-    git sparse-checkout set RaspberryPi_JetsonNano/python/lib/waveshare_epd
-    cp -r RaspberryPi_JetsonNano/python/lib/waveshare_epd /usr/local/lib/python3.*/dist-packages/
-    cd /
-    rm -rf "$TEMP_WS"
+    pip3 install waveshare-epd --break-system-packages 2>/dev/null || {
+        # Fallback falls PyPI fehlschlägt: Normaler Standard-Clone ohne Blobless-Filter
+        TEMP_WS=$(mktemp -d)
+        git clone --depth 1 https://github.com/waveshareteam/e-Paper.git "$TEMP_WS"
+        python3 -m pip install "$TEMP_WS/RaspberryPi_JetsonNano/python/" --break-system-packages
+        rm -rf "$TEMP_WS"
+    }
 fi
 
-echo "[4/6] Richte Projektverzeichnis unter $INSTALL_DIR ein..."
-if [ -d "$INSTALL_DIR/.git" ]; then
-    cd "$INSTALL_DIR"
-    git pull
-else
-    git clone "$REPO_URL" "$INSTALL_DIR"
-    cd "$INSTALL_DIR"
-fi
+# 5. Projekt einrichten
+echo "[4/5] Richte Projektverzeichnis unter $INSTALL_DIR ein..."
+mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
 
-echo "[5/6] Erstelle Konfiguration..."
+# Einzelne Dateien direkt per raw.githubusercontent laden (kein Git-Login nötig!)
+BASE_RAW="https://raw.githubusercontent.com/naturekid72/ePaper-2.13-for-adsb.im-dietpie-Image-/main"
+curl -sSL "$BASE_RAW/adsb_display.py" -o "$INSTALL_DIR/adsb_display.py"
+curl -sSL "$BASE_RAW/config.example.yaml" -o "$INSTALL_DIR/config.example.yaml"
+curl -sSL "$BASE_RAW/adsb-display.service" -o "$INSTALL_DIR/adsb-display.service"
+curl -sSL "$BASE_RAW/preview.py" -o "$INSTALL_DIR/preview.py" || true
+
+# 6. Konfiguration erstellen (automatisch aus adsb.im)
+echo "[5/5] Erstelle Konfiguration..."
 if [ ! -f "$INSTALL_DIR/config.yaml" ]; then
     cp "$INSTALL_DIR/config.example.yaml" "$INSTALL_DIR/config.yaml"
     
@@ -65,14 +73,14 @@ if [ ! -f "$INSTALL_DIR/config.yaml" ]; then
     fi
 fi
 
-echo "[6/6] Richte Systemd-Autostart ein..."
+# 7. Systemd-Service scharfschalten
 cp "$INSTALL_DIR/adsb-display.service" /etc/systemd/system/adsb-display.service
 systemctl daemon-reload
 systemctl enable adsb-display.service
 systemctl restart adsb-display.service
 
 echo "================================================================="
-echo "Installation abgeschlossen!"
-echo "Konfigurationsdatei: $INSTALL_DIR/config.yaml"
-echo "HINWEIS: Falls SPI gerade erst aktiviert wurde, bitte einmal neu starten: reboot"
+echo "Installation erfolgreich abgeschlossen!"
+echo "Status prüfen mit: systemctl status adsb-display"
+echo "Falls SPI neu aktiviert wurde: reboot"
 echo "================================================================="
